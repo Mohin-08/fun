@@ -1,26 +1,24 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
-import {
-  getDatabase,
-  connectDatabaseEmulator,
-} from "firebase/database";
-import {
-  getFunctions,
-  connectFunctionsEmulator,
-} from "firebase/functions";
+import { getAuth } from "firebase/auth";
+import { getDatabase } from "firebase/database";
+import { getFunctions } from "firebase/functions";
 
-// Firebase configuration - uses environment variables in production
+/* ===============================
+   FIREBASE CONFIG (PRODUCTION SAFE)
+   - NO localhost fallbacks
+   - Emulator only via explicit connection
+=============================== */
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "fake-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "localhost",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ai-complaint-analyzer-d0bc1",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || 
-    "http://127.0.0.1:9000?ns=ai-complaint-analyzer-d0bc1-default-rtdb",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 /* ===============================
@@ -34,16 +32,11 @@ export const auth = getAuth(app);
 export const rtdb = getDatabase(app);
 
 /* ===============================
-   CLOUD FUNCTIONS
+   CLOUD FUNCTIONS (europe-west1 region)
 =============================== */
-export const functions = getFunctions(app);
+export const functions = getFunctions(app, "europe-west1");
 
 /* ===============================
-   EMULATOR CONNECTIONS (LOCAL DEV ONLY)
+   ALL SERVICES USE PRODUCTION FIREBASE
+   No emulators connected
 =============================== */
-if (import.meta.env.DEV) {
-  connectAuthEmulator(auth, "http://localhost:9099");
-  connectDatabaseEmulator(rtdb, "localhost", 9000);
-  connectFunctionsEmulator(functions, "localhost", 5001);
-  console.log("🔧 Firebase Emulators connected (dev mode)");
-}

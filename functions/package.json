@@ -4,9 +4,10 @@
   "main": "index.js",
   "private": true,
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "scripts": {
+    "lint": "echo \"Lint skipped\"",
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"

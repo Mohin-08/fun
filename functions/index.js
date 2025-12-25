@@ -29,13 +29,15 @@ function extractJSON(text) {
 
 /* ======================================================
    Helper: Analyze complaint with Gemini
+   Model: gemini-pro (stable model)
 ====================================================== */
 async function analyzeComplaintWithGemini(title, description) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
 
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-  });
+ const model = genAI.getGenerativeModel({
+  model: "gemini-pro",
+});
+
 
   const prompt = `
 You are an AI assistant helping customer support managers.
@@ -75,8 +77,9 @@ Respond ONLY with JSON in this exact format:
 
 /* ======================================================
    Callable: Re-analyze a specific complaint
+   Region: europe-west1 (matches database location)
 ====================================================== */
-exports.reanalyzeComplaint = onCall(async (request) => {
+exports.reanalyzeComplaint = onCall({ region: "europe-west1" }, async (request) => {
   const complaintId = request.data?.complaintId;
 
   console.log("🔄 Re-analyze request received:", request.data);
@@ -148,9 +151,14 @@ exports.reanalyzeComplaint = onCall(async (request) => {
 
 /* ======================================================
    Trigger: When a new complaint is created
+   Region: europe-west1 (matches database location)
 ====================================================== */
 exports.onComplaintCreated = onValueCreated(
-  "/complaints/{complaintId}",
+  {
+    ref: "/complaints/{complaintId}",
+    region: "europe-west1",
+    instance: "ai-complaint-analyzer-d0bc1-default-rtdb",
+  },
   async (event) => {
     const complaintId = event.params.complaintId;
     const complaint = event.data.val();
