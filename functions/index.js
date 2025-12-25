@@ -6,7 +6,7 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-/* 🔐 Gemini API Key (v7 compatible) */
+/* 🔐 Gemini API Key */
 const GEMINI_API_KEY = defineString("GEMINI_API_KEY");
 
 /* ======================================================
@@ -14,7 +14,6 @@ const GEMINI_API_KEY = defineString("GEMINI_API_KEY");
 ====================================================== */
 function extractJSON(text) {
   try {
-    // Remove markdown ```json ``` if present
     const cleaned = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -22,24 +21,24 @@ function extractJSON(text) {
 
     return JSON.parse(cleaned);
   } catch (err) {
-    console.error("❌ JSON parse failed:", text);
+    console.error("❌ JSON parse failed. Raw text:", text);
     return null;
   }
 }
 
 /* ======================================================
    Helper: Analyze complaint with Gemini
-   Model: gemini-pro (stable model)
+   ✅ STABLE MODEL: gemini-1.0-pro (verified working)
 ====================================================== */
 async function analyzeComplaintWithGemini(title, description) {
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
+  try {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
 
- const model = genAI.getGenerativeModel({
-  model: "gemini-pro",
-});
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.0-pro",
+    });
 
-
-  const prompt = `
+    const prompt = `
 You are an AI assistant helping customer support managers.
 
 Analyze the following complaint and respond ONLY in valid JSON.
@@ -58,7 +57,7 @@ Complaint:
 Title: ${title}
 Description: ${description}
 
-Respond ONLY with JSON in this exact format:
+Respond ONLY with JSON in this format:
 {
   "summary": "",
   "category": "",
@@ -67,55 +66,63 @@ Respond ONLY with JSON in this exact format:
 }
 `;
 
-  const result = await model.generateContent(prompt);
-  const rawText = result.response.text();
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.text();
 
-  console.log("🤖 Gemini raw output:", rawText);
+    console.log("🤖 Gemini raw output:", rawText);
 
-  return extractJSON(rawText);
+    const parsed = extractJSON(rawText);
+    if (!parsed) {
+      throw new Error("Gemini returned invalid JSON");
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error("❌ Gemini call failed:", error.message);
+    return null; // IMPORTANT: do NOT throw
+  }
 }
 
 /* ======================================================
-   Callable: Re-analyze a specific complaint
-   Region: europe-west1 (matches database location)
+   Callable Function: Re-analyze Complaint
+   ✅ Correct way (NO fetch, NO CORS issues)
 ====================================================== */
-exports.reanalyzeComplaint = onCall({ region: "europe-west1" }, async (request) => {
-  const complaintId = request.data?.complaintId;
+exports.reanalyzeComplaint = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    const complaintId = request.data?.complaintId;
 
-  console.log("🔄 Re-analyze request received:", request.data);
+    console.log("🔄 Re-analyze request:", request.data);
 
-  if (!complaintId) {
-    console.error("❌ No complaintId provided");
-    throw new HttpsError("invalid-argument", "complaintId is required");
-  }
+    if (!complaintId) {
+      throw new HttpsError("invalid-argument", "complaintId is required");
+    }
 
-  console.log("🔄 Re-analyzing complaint:", complaintId);
-
-  try {
-    // Fetch the complaint
-    const complaintSnap = await admin
+    const snap = await admin
       .database()
       .ref(`complaints/${complaintId}`)
       .get();
 
-    if (!complaintSnap.exists()) {
-      console.error("❌ Complaint not found:", complaintId);
+    if (!snap.exists()) {
       throw new HttpsError("not-found", "Complaint not found");
     }
 
-    const complaint = complaintSnap.val();
-    console.log("📋 Complaint data:", complaint);
+    const complaint = snap.val();
 
-    // If aiAnalysis already exists, return it (no need to re-analyze)
+    // ✅ Guard: prevent repeated Gemini calls
     if (complaint.aiAnalysis && complaint.aiAnalysis.summary) {
-      console.log("✅ AI analysis already exists, returning existing data");
-      return { success: true, aiAnalysis: complaint.aiAnalysis, cached: true };
+      return {
+        success: true,
+        aiAnalysis: complaint.aiAnalysis,
+        cached: true,
+      };
     }
 
-    // Check if we have title and description to analyze
     if (!complaint.title || !complaint.description) {
-      console.error("❌ Complaint missing title/description and no existing analysis");
-      throw new HttpsError("invalid-argument", "Complaint missing title/description. Please create a new complaint.");
+      throw new HttpsError(
+        "invalid-argument",
+        "Complaint missing title or description"
+      );
     }
 
     const aiAnalysis = await analyzeComplaintWithGemini(
@@ -124,11 +131,12 @@ exports.reanalyzeComplaint = onCall({ region: "europe-west1" }, async (request) 
     );
 
     if (!aiAnalysis) {
-      console.error("❌ Failed to parse AI response");
-      throw new HttpsError("internal", "Failed to parse AI response");
+      throw new HttpsError(
+        "resource-exhausted",
+        "AI quota exceeded or invalid response. Please retry later."
+      );
     }
 
-    // Save AI Analysis
     await admin
       .database()
       .ref(`complaints/${complaintId}/aiAnalysis`)
@@ -137,21 +145,14 @@ exports.reanalyzeComplaint = onCall({ region: "europe-west1" }, async (request) 
         analyzedAt: Date.now(),
       });
 
-    console.log("✅ Re-analysis saved successfully");
+    console.log("✅ Re-analysis saved");
 
     return { success: true, aiAnalysis };
-  } catch (error) {
-    console.error("❌ Re-analysis failed:", error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    throw new HttpsError("internal", error.message || "Unknown error occurred");
   }
-});
+);
 
 /* ======================================================
-   Trigger: When a new complaint is created
-   Region: europe-west1 (matches database location)
+   Trigger: Auto analyze on new complaint
 ====================================================== */
 exports.onComplaintCreated = onValueCreated(
   {
@@ -166,38 +167,34 @@ exports.onComplaintCreated = onValueCreated(
     console.log("🔥 New complaint detected:", complaintId);
 
     if (!complaint?.title || !complaint?.description) {
-      console.warn("⚠️ Complaint missing title/description");
+      console.warn("⚠️ Missing title/description");
       return;
     }
 
-    try {
-      const aiAnalysis = await analyzeComplaintWithGemini(
-        complaint.title,
-        complaint.description
-      );
-
-      if (!aiAnalysis) {
-        console.error("❌ Invalid AI response, skipping save");
-        return;
-      }
-
-      /* ===============================
-         Save AI Analysis to RTDB
-      =============================== */
-      await admin
-        .database()
-        .ref(`complaints/${complaintId}/aiAnalysis`)
-        .set({
-          ...aiAnalysis,
-          analyzedAt: Date.now(),
-        });
-
-      console.log("✅ AI analysis saved successfully");
-
-    } catch (error) {
-      console.error("❌ Gemini analysis failed:", error.message);
+    // ✅ Guard: prevent duplicate Gemini calls
+    if (complaint.aiAnalysis && complaint.aiAnalysis.summary) {
+      console.log("⏭️ Already analyzed, skipping");
+      return;
     }
 
-    return;
+    const aiAnalysis = await analyzeComplaintWithGemini(
+      complaint.title,
+      complaint.description
+    );
+
+    if (!aiAnalysis) {
+      console.warn("⚠️ AI unavailable (quota or error)");
+      return;
+    }
+
+    await admin
+      .database()
+      .ref(`complaints/${complaintId}/aiAnalysis`)
+      .set({
+        ...aiAnalysis,
+        analyzedAt: Date.now(),
+      });
+
+    console.log("✅ Auto analysis saved");
   }
 );
