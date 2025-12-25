@@ -1,0 +1,93 @@
+/* Home Page Specific Styles */
+
+/* Smooth Animations */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Hover Effects for Home Page */
+.home-page button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3) !important;
+}
+
+.home-page button:active {
+  transform: translateY(0);
+}
+
+.home-page a:hover {
+  opacity: 0.7 !important;
+}
+
+/* Smooth Transitions */
+.home-page * {
+  transition-timing-function: ease-out;
+}
+
+/* Custom Scrollbar for Home Page */
+.home-page::-webkit-scrollbar {
+  width: 10px;
+}
+
+.home-page::-webkit-scrollbar-track {
+  background: #FAF5FF;
+}
+
+.home-page::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #8B5CF6, #7C3AED);
+  border-radius: 10px;
+}
+
+.home-page::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7C3AED, #6D28D9);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .home-page nav {
+    flex-direction: column;
+    padding: 15px 30px !important;
+  }
+
+  .home-page .heroTitle {
+    font-size: 36px !important;
+  }
+
+  .home-page .statsRow {
+    flex-direction: column;
+    gap: 30px !important;
+  }
+
+  .home-page .grid3,
+  .home-page .grid2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .home-page .ctaButtons {
+    flex-direction: column;
+  }
+}

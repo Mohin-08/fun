@@ -29,7 +29,7 @@ function Login() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/"); // RoleRedirect decides dashboard
+      navigate("/dashboard"); // RoleRedirect decides dashboard
     } catch (err) {
       setError("Invalid email or password");
     } finally {
@@ -64,7 +64,7 @@ function Login() {
         });
       }
 
-      navigate("/");
+      navigate("/dashboard");
     } catch (err) {
       console.error("Google sign-in error:", err);
       setError("Google sign-in failed");

@@ -39,13 +39,19 @@ function ManagerDashboard() {
   =============================== */
   const handleReanalyze = async (complaintId) => {
     setAnalyzingIds((prev) => new Set([...prev, complaintId]));
+    setError(null); // Clear previous errors
 
     try {
       const reanalyzeComplaint = httpsCallable(functions, "reanalyzeComplaint");
-      await reanalyzeComplaint({ complaintId });
+      const result = await reanalyzeComplaint({ complaintId });
+      console.log("✅ Re-analysis successful:", result.data);
+      
+      // Clear error on success
+      setError(null);
     } catch (error) {
       console.error("Re-analysis failed:", error);
-      setError("Failed to analyze complaint: " + error.message);
+      const errorMessage = error.message || error.details || "Unknown error occurred";
+      setError("Failed to analyze complaint: " + errorMessage);
     } finally {
       setAnalyzingIds((prev) => {
         const newSet = new Set(prev);
@@ -116,7 +122,7 @@ function ManagerDashboard() {
       return complaint.workflowStatus;
     }
     // If has AI analysis, at least "analyzed"
-    if (complaint.aiAnalysis?.summary) {
+    if (complaint.aiAnalysis) {
       return "analyzed";
     }
     // Default to submitted
@@ -557,7 +563,7 @@ function ManagerDashboard() {
                       <div className="complaint-body">
                         <p className="complaint-description">{complaint.description || "No description provided"}</p>
 
-                        {complaint.aiAnalysis?.summary ? (
+                        {complaint.aiAnalysis ? (
                           <div className="ai-analysis">
                             <div className="ai-header">
                               <div className="ai-icon">🤖</div>
@@ -707,7 +713,7 @@ function ManagerDashboard() {
                     <div className="complaint-body">
                       <p className="complaint-description">{complaint.description || "No description provided"}</p>
 
-                      {complaint.aiAnalysis?.summary ? (
+                      {complaint.aiAnalysis ? (
                         <div className="ai-analysis">
                           <div className="ai-header">
                             <div className="ai-icon">🤖</div>
